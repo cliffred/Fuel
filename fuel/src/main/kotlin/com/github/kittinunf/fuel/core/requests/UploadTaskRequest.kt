@@ -16,40 +16,12 @@ internal class UploadTaskRequest(request: Request) : TaskRequest(request) {
         outputStream.apply {
             val files = sourceCallback(request, request.url)
 
-            files.forEachIndexed { i, (name, length, inputStream) ->
-                val postFix = if (files.count() == 1) "" else "${i + 1}"
-                val fieldName = request.names.getOrElse(i) { request.name + postFix }
-
-                contentLength += write("--$boundary")
-                contentLength += writeln()
-                contentLength += write("Content-Disposition: form-data; name=\"$fieldName\"; filename=\"$name\"")
-                contentLength += writeln()
-                contentLength += write("Content-Type: " + request.mediaTypes.getOrElse(i) { guessContentType(name) })
-                contentLength += writeln()
-                contentLength += writeln()
-
-                //input file data
-                if (outputStream != null) {
-                    inputStream().use {
-                        it.copyTo(outputStream, BUFFER_SIZE) { writtenBytes ->
-                            progressCallback?.invoke(contentLength + writtenBytes, totalLength)
-                        }
-                    }
-                }
-                contentLength += length
-                contentLength += writeln()
-            }
-
-            request.parameters.forEach { (name, data) ->
-                contentLength += write("--$boundary")
-                contentLength += writeln()
-                contentLength += write("Content-Disposition: form-data; name=\"$name\"")
-                contentLength += writeln()
-                contentLength += write("Content-Type: text/plain")
-                contentLength += writeln()
-                contentLength += writeln()
-                contentLength += write(data.toString())
-                contentLength += writeln()
+            if (request.sourcesLast) {
+                contentLength = addParameters(request, contentLength)
+                contentLength = addSources(files, request, contentLength, totalLength)
+            } else {
+                contentLength = addSources(files, request, contentLength, totalLength)
+                contentLength = addParameters(request, contentLength)
             }
 
             contentLength += write("--$boundary--")
@@ -58,6 +30,50 @@ internal class UploadTaskRequest(request: Request) : TaskRequest(request) {
 
         progressCallback?.invoke(contentLength, totalLength)
         return contentLength
+    }
+
+    private fun OutputStream?.addParameters(request: Request, contentLength: Long): Long {
+        var contentLengthVar = contentLength
+        request.parameters.forEach { (name, data) ->
+            contentLengthVar += write("--$boundary")
+            contentLengthVar += writeln()
+            contentLengthVar += write("Content-Disposition: form-data; name=\"$name\"")
+            contentLengthVar += writeln()
+            contentLengthVar += write("Content-Type: text/plain")
+            contentLengthVar += writeln()
+            contentLengthVar += writeln()
+            contentLengthVar += write(data.toString())
+            contentLengthVar += writeln()
+        }
+        return contentLengthVar
+    }
+
+    private fun OutputStream?.addSources(files: Iterable<Blob>, request: Request, contentLength: Long, totalLength: Long): Long {
+        var contentLengthVar = contentLength
+        files.forEachIndexed { i, (name, length, inputStream) ->
+            val postFix = if (files.count() == 1) "" else "${i + 1}"
+            val fieldName = request.names.getOrElse(i) { request.name + postFix }
+
+            contentLengthVar += write("--$boundary")
+            contentLengthVar += writeln()
+            contentLengthVar += write("Content-Disposition: form-data; name=\"$fieldName\"; filename=\"$name\"")
+            contentLengthVar += writeln()
+            contentLengthVar += write("Content-Type: " + request.mediaTypes.getOrElse(i) { guessContentType(name) })
+            contentLengthVar += writeln()
+            contentLengthVar += writeln()
+
+            //input file data
+            if (this != null) {
+                inputStream().use {
+                    it.copyTo(this, BUFFER_SIZE) { writtenBytes ->
+                        progressCallback?.invoke(contentLengthVar + writtenBytes, totalLength)
+                    }
+                }
+            }
+            contentLengthVar += length
+            contentLengthVar += writeln()
+        }
+        return contentLengthVar
     }
 
     private val boundary = request.headers["Content-Type"]?.split("=", limit = 2)?.get(1) ?: System.currentTimeMillis().toString(16)

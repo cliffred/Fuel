@@ -69,6 +69,39 @@ class RequestUploadTest : BaseTestCase() {
                 }
 
         assertThat(request, notNullValue())
+        assertThat(request.toString().indexOf("foo") > request.toString().indexOf("file-name"), equalTo(true))
+        assertThat(response, notNullValue())
+        assertThat(error, nullValue())
+        assertThat(data, notNullValue())
+
+        val statusCode = HttpURLConnection.HTTP_OK
+        assertThat(response?.statusCode, isEqualTo(statusCode))
+    }
+
+    @Test
+    fun httpUploadWithPostAndSourceAfterParamsCase() {
+        var request: Request? = null
+        var response: Response? = null
+        var data: Any? = null
+        var error: FuelError? = null
+
+        manager.upload("/post", param = listOf("foo" to "bar"))
+                .source { _, _ ->
+                    File(currentDir, "lorem_ipsum_short.tmp")
+                }
+                .sourcesLast()
+                .name { "file-name" }
+                .responseString { req, res, result ->
+                    request = req
+                    response = res
+                    val (d, err) = result
+                    data = d
+                    error = err
+                    print(d)
+                }
+
+        assertThat(request, notNullValue())
+        assertThat(request.toString().indexOf("foo") < request.toString().indexOf("file-name"), equalTo(true))
         assertThat(response, notNullValue())
         assertThat(error, nullValue())
         assertThat(data, notNullValue())

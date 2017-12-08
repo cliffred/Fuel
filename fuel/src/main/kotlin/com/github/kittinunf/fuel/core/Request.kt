@@ -31,7 +31,8 @@ class Request(
         val names: MutableList<String> = mutableListOf(),
         val mediaTypes: MutableList<String> = mutableListOf(),
         var timeoutInMillisecond: Int = 15000,
-        var timeoutReadInMillisecond: Int = timeoutInMillisecond) : Fuel.RequestConvertible {
+        var timeoutReadInMillisecond: Int = timeoutInMillisecond,
+        var sourcesLast: Boolean = false) : Fuel.RequestConvertible {
 
     @Deprecated(replaceWith = ReplaceWith("method"), message = "http naming is deprecated, use 'method' instead")
     val httpMethod get() = method
@@ -194,6 +195,11 @@ class Request(
             listOf(source(request, request.url))
         }
 
+        return this
+    }
+
+    fun sourcesLast(last: Boolean = true): Request {
+        sourcesLast = last
         return this
     }
 
